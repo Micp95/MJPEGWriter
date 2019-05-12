@@ -23,6 +23,8 @@
 #include <string.h>
 #include "opencv2/opencv.hpp"
 
+#include "Logger.h"
+
 using namespace cv;
 using namespace std;
 
@@ -41,7 +43,6 @@ class MJPEGWriter{
     SOCKET sock;
     fd_set master;
     int timeout;
-    int quality; // jpeg compression [1..100]
     std::vector<int> clients;
     pthread_t thread_listen, thread_write;
     pthread_mutex_t mutex_client = PTHREAD_MUTEX_INITIALIZER;
@@ -49,7 +50,8 @@ class MJPEGWriter{
     pthread_mutex_t mutex_writer = PTHREAD_MUTEX_INITIALIZER;
     Mat lastFrame;
     int port;
-
+    void (*connectionCallBack)(string header,int clients);
+    
     int _write(int sock, char *s, int len)
     {
         if (len < 1) { len = strlen(s); }
@@ -61,7 +63,8 @@ class MJPEGWriter{
         	}
         	catch (int e)
         	{
-        		cout << "An exception occurred. Exception Nr. " << e << '\n';
+        		Logger::Log("MJPEGWriter: An exception occurred");
+        		//cout << "An exception occurred. Exception Nr. " << e << '\n';
         	}
         }
         return -1;
@@ -73,7 +76,8 @@ class MJPEGWriter{
         result = recv(socket, buffer, 4096, MSG_PEEK);
         if (result < 0 )
         {
-            cout << "An exception occurred. Exception Nr. " << result << '\n';
+        		Logger::Log("MJPEGWriter: An exception occurred");
+            //cout << "An exception occurred. Exception Nr. " << result << '\n';
             return result;
         }
         string s = buffer;
@@ -102,17 +106,20 @@ class MJPEGWriter{
     }
 
 public:
-
-    MJPEGWriter(int port = 0)
+    int quality; // jpeg compression [1..100]
+    
+    MJPEGWriter(int port = 0, void (*_connectionCallBack)(string header,int clients) = NULL)
         : sock(INVALID_SOCKET)
         , timeout(TIMEOUT_M)
         , quality(90)
-	, port(port)
+        , port(port)
+        , connectionCallBack(_connectionCallBack)
     {
         signal(SIGPIPE, SIG_IGN);
         FD_ZERO(&master);
         // if (port)
         //     open(port);
+        amountOfClients = 0;
     }
 
     ~MJPEGWriter()
@@ -180,4 +187,5 @@ private:
     void Listener();
     void Writer();
     void ClientWrite(clientFrame &cf);
+    int amountOfClients;
 };

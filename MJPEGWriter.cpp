@@ -34,15 +34,23 @@ MJPEGWriter::Listener()
                     SOCKET      client = accept(sock, (SOCKADDR*)&address, (socklen_t*)&addrlen);
                     if (client == SOCKET_ERROR)
                     {
-                        cerr << "error : couldn't accept connection on sock " << sock << " !" << endl;
+                    		Logger::Log("MJPEGWriter:: error : couldn't accept connection on sock");
+                        //cerr << "error : couldn't accept connection on sock " << sock << " !" << endl;
                         return;
                     }
                     maxfd = (maxfd>client ? maxfd : client);
+                                        
                     pthread_mutex_lock(&mutex_cout);
-                    cout << "new client " << client << endl;
+                    Logger::Log("MJPEGWriter: new client");
+                    //cout << "new client " << client << endl;
                     char headers[4096] = "\0";
                     int readBytes = _read(client, headers);
-                    cout << headers;
+                    
+                    amountOfClients++;
+                    string headers_str(headers);
+                    connectionCallBack(headers_str,amountOfClients);
+                    
+                    //cout << headers;
                     pthread_mutex_unlock(&mutex_cout);
                     pthread_mutex_lock(&mutex_client);
                     _write(client, header_data, header_size);
@@ -75,7 +83,7 @@ MJPEGWriter::Writer()
 
         std::vector<uchar> outbuf;
         std::vector<int> params;
-        params.push_back(CV_IMWRITE_JPEG_QUALITY);
+        params.push_back(cv::IMWRITE_JPEG_QUALITY);
         params.push_back(quality);
         pthread_mutex_lock(&mutex_writer);
         imencode(".jpg", lastFrame, outbuf, params);
@@ -119,7 +127,11 @@ MJPEGWriter::ClientWrite(clientFrame & cf)
       	it = find (clients.begin(), clients.end(), cf.client);
       	if (it != clients.end())
       	{
-      		cerr << "kill client " << cf.client << endl;
+      	  amountOfClients--;
+      		if(amountOfClients<0) amountOfClients=0;
+      		connectionCallBack("",amountOfClients);
+      		Logger::Log("MJPEGWriter: kill client");
+      		//cerr << "kill client " << cf.client << endl;
       		clients.erase(std::remove(clients.begin(), clients.end(), cf.client));
             	::shutdown(cf.client, 2);
       	}
@@ -127,3 +139,5 @@ MJPEGWriter::ClientWrite(clientFrame & cf)
     pthread_mutex_unlock(&mutex_client);
     pthread_exit(NULL);
 }
+
+
